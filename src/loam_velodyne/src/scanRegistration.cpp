@@ -331,6 +331,7 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr &laserCloudMsg)
         int scanID;
         //仰角四舍五入(加减0.5截断效果等于四舍五入)
         int roundedAngle = int(angle + (angle < 0.0 ? -0.5 : +0.5));
+        printf("@test roundedAngle: %d\n" , roundedAngle);
         if (roundedAngle > 0)
         {
             scanID = roundedAngle;
