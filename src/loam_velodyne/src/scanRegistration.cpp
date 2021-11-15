@@ -811,11 +811,54 @@ void imuHandler(const sensor_msgs::Imu::ConstPtr &imuIn)
   tf::Quaternion orientation;
   //convert Quaternion msg to Quaternion
   tf::quaternionMsgToTF(imuIn->orientation, orientation);
-  //This will get the roll pitch and yaw from the matrix about fixed axes X, Y, Z respectively. That's R = Rz(yaw)*Ry(pitch)*Rx(roll).
+  //This will get the roll pitch and yaw from the matrix about fixed axes X, Y, Z respectively. 
+  //That's R = Rz(yaw)*Ry(pitch)*Rx(roll).
   //Here roll pitch yaw is in the global frame
   tf::Matrix3x3(orientation).getRPY(roll, pitch, yaw);
 
-  //减去重力的影响,求出xyz方向的加速度实际值，并进行坐标轴交换，统一到z轴向前,x轴向左的右手坐标系, 交换过后RPY对应fixed axes ZXY(RPY---ZXY)。Now R = Ry(yaw)*Rx(pitch)*Rz(roll).
+  //减去重力的影响,求出xyz方向的加速度实际值，并进行坐标轴交换，统一到z轴向前,x轴向左的右手坐标系, 
+  //交换过后RPY对应fixed axes ZXY(RPY---ZXY)。Now R = Ry(yaw)*Rx(pitch)*Rz(roll).
+
+  // (0,0,9.81)^T = R * (a_x,a_y,a_z)^T
+  // 上式中的(a_x,a_y,a_z)^T为重力加速度在imu坐标系下的坐标
+  // 则(a_x,a_y,a_z)^T = R^T * (0,0,9.81)^T
+  // 已知 R = Rz(yaw) * Ry(pitch) * Rx(roll)
+
+  //      |1  0           0        |
+  // Rx = |0  cos(roll)  -sin(roll)|   
+  //      |0  sin(roll)   cos(roll)|
+
+  //      |cos(pitch)    0    sin(pitch)|
+  // Ry = |0             0            1 |  
+  //      |-sin(pitch)   0    cos(pitch)|
+
+  //      |cos(yaw)   -sin(yaw)     0|
+  // Rz = |sin(yaw)   cos(yaw)      0|  
+  //      |0          0             1|
+
+  // 这里假设绕z轴不旋转
+  // R = Ry(pitch) * Rx(roll)
+  //      |cos(pitch)    0    sin(pitch)|   |1  0           0        |
+  //   =  |0             0            1 | * |0  cos(roll)  -sin(roll)|   
+  //      |-sin(pitch)   0    cos(pitch)|   |0  sin(roll)   cos(roll)|
+  //      |cos(pitch)    sin(pitch)sin(roll)    sin(pitch)cos(roll)|
+  //   =  |0             sin(roll)              cos(roll)          |
+  //      |-sin(pitch)   cos(pitch)sin(roll)    cos(pitch)cos(roll)|
+
+  //        |cos(pitch)             0            -sin(pitch)        |
+  // R^T =  |sin(pitch)sin(roll)    sin(roll)    cos(pitch)sin(roll)|
+  //        |sin(pitch)cos(roll)    cos(roll)    cos(pitch)cos(roll)|
+
+  // a_x = sin(pitch) * 9.81
+  // a_y = cos(pitch) * sin(roll) * -9.81
+  // a_z = cos(pitch) * cos(roll) * -9.81
+
+  // 原坐标系 x轴朝前，y轴朝左，z轴朝上
+  // 新坐标系z轴超前，x超左，y朝上
+  // accX = imuIn->linear_acceleration.y + ay
+  // accY = imuIn->linear_acceleration.z + az
+  // accZ = imuIn->linear_acceleration.x + ax
+
   float accX = imuIn->linear_acceleration.y - sin(roll) * cos(pitch) * 9.81;
   float accY = imuIn->linear_acceleration.z - cos(roll) * cos(pitch) * 9.81;
   float accZ = imuIn->linear_acceleration.x + sin(pitch) * 9.81;
